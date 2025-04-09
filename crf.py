@@ -392,57 +392,58 @@ def run_crf_pipeline_with_original_columns(X_train, y_train_entity_dicts, X_test
         'output_df': output_df
     }
 
-X_train, y_train, X_test, y_test = read_train_test_split()
-# Prepare entity lists for training
-train_entities = []
-for i in range(len(y_train)):
-    train_entities.append({
-        "Condition": y_train.iloc[i]['Condition'],
-        "Procedure": y_train.iloc[i]['Procedure'],
-        "Medication": y_train.iloc[i]['Medication']
+def crf_main():
+    X_train, y_train, X_test, y_test = read_train_test_split()
+    # Prepare entity lists for training
+    train_entities = []
+    for i in range(len(y_train)):
+        train_entities.append({
+            "Condition": y_train.iloc[i]['Condition'],
+            "Procedure": y_train.iloc[i]['Procedure'],
+            "Medication": y_train.iloc[i]['Medication']
+        })
+
+    # Prepare entity lists for testing
+    test_entities = []
+    for i in range(len(y_test)):
+        test_entities.append({
+            "Condition": y_test.iloc[i]['Condition'],
+            "Procedure": y_test.iloc[i]['Procedure'],
+            "Medication": y_test.iloc[i]['Medication']
+        })
+
+    # Create test DataFrame for original columns
+    test_df = pd.DataFrame({
+        'Condition': y_test['Condition'],
+        'Procedure': y_test['Procedure'],
+        'Medication': y_test['Medication']
     })
 
-# Prepare entity lists for testing
-test_entities = []
-for i in range(len(y_test)):
-    test_entities.append({
-        "Condition": y_test.iloc[i]['Condition'],
-        "Procedure": y_test.iloc[i]['Procedure'],
-        "Medication": y_test.iloc[i]['Medication']
-    })
+    # Run the pipeline with original columns
+    results = run_crf_pipeline_with_original_columns(
+        X_train.tolist(), 
+        train_entities, 
+        X_test.tolist(), 
+        test_entities,
+        y_test_df=test_df
+    )
 
-# Create test DataFrame for original columns
-test_df = pd.DataFrame({
-    'Condition': y_test['Condition'],
-    'Procedure': y_test['Procedure'],
-    'Medication': y_test['Medication']
-})
+     
+    # Save the output directly
+    results['output_df'].to_csv(CRF_MODEL_OUTPUT_FILE, index=False)
 
-# Run the pipeline with original columns
-results = run_crf_pipeline_with_original_columns(
-    X_train.tolist(), 
-    train_entities, 
-    X_test.tolist(), 
-    test_entities,
-    y_test_df=test_df
-)
+    print("\nDetailed Classification Report:")
+    print(results['report'])
 
- 
-# Save the output directly
-results['output_df'].to_csv(CRF_MODEL_OUTPUT_FILE, index=False)
+    for entity_type in ['Condition', 'Procedure', 'Medication']:
+        if entity_type in results['evaluation']:
+            print(f"\n{entity_type}:")
+            print(f"F1 Score: {results['evaluation'][entity_type]['f1']:.4f}")
+            print(f"Precision: {results['evaluation'][entity_type]['precision']:.4f}")
+            print(f"Recall: {results['evaluation'][entity_type]['recall']:.4f}")
 
-print("\nDetailed Classification Report:")
-print(results['report'])
-
-for entity_type in ['Condition', 'Procedure', 'Medication']:
-    if entity_type in results['evaluation']:
-        print(f"\n{entity_type}:")
-        print(f"F1 Score: {results['evaluation'][entity_type]['f1']:.4f}")
-        print(f"Precision: {results['evaluation'][entity_type]['precision']:.4f}")
-        print(f"Recall: {results['evaluation'][entity_type]['recall']:.4f}")
-
-# Print evaluation results
-print("\nCRF Model Performance:")
-print(f"Overall F1 Score: {results['evaluation']['overall']['f1']:.4f}")
-print(f"Overall Precision: {results['evaluation']['overall']['precision']:.4f}")
-print(f"Overall Recall: {results['evaluation']['overall']['recall']:.4f}")
+    # Print evaluation results
+    print("\nCRF Model Performance:")
+    print(f"Overall F1 Score: {results['evaluation']['overall']['f1']:.4f}")
+    print(f"Overall Precision: {results['evaluation']['overall']['precision']:.4f}")
+    print(f"Overall Recall: {results['evaluation']['overall']['recall']:.4f}")

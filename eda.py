@@ -44,15 +44,45 @@ uniqe_Conditions = set().union(*df['Condition'])
 uniqe_Procedures = set().union(*df['Procedure'])
 uniqe_Medication = set().union(*df['Medication'])
 
-print(f'Lengths: Data : {len(df)}, Uniqe Conditions: {len(uniqe_Conditions)}, uniqe_Procedures: {len(uniqe_Procedures)}, uniqe Medication:{len(uniqe_Medication)}')
+def is_non_empty_list(x):
+    return isinstance(x, list) and len(x) > 0
+
+# Apply the function to the specified columns and create a mask
+columns_of_interest = ['Condition', 'Procedure', 'Medication']
+mask = df[columns_of_interest].applymap(is_non_empty_list)
+
+# Select rows where all specified columns contain non-empty lists
+df_non_empty = df[mask.any(axis=1)]
+
+print(f'Lengths: Data : {len(df)}, None empty rows: {len(df_non_empty)}\n',
+f'Uniqe Conditions: {len(uniqe_Conditions)}, uniqe_Procedures: {len(uniqe_Procedures)}, uniqe Medication:{len(uniqe_Medication)}')
 calc_empty(df, empty_cacl_list)
 
+
 # %%
-calc_hist(df, 'Procedure', EMPTY_HIST_THRESHOLD_PROCEDURE)
+def is_non_empty_list(x):
+    return isinstance(x, list) and len(x) > 0
+
+# Apply the function to the specified columns and create a mask
+columns_of_interest = ['Condition', 'Procedure', 'Medication']
+mask = df[columns_of_interest].applymap(is_non_empty_list)
+
+# Select rows where all specified columns contain non-empty lists
+df_non_empty = df[mask.any(axis=1)]
+len(df_non_empty)
+
 # %%
-calc_hist(df, 'Condition', EMPTY_HIST_THRESHOLD_CONDITION)
+mask
+
 # %%
-calc_hist(df, 'Medication', EMPTY_HIST_THRESHOLD_MEDICATION)
+16406-308
+
+# %%
+calc_hist(df, 'Procedure', EMPTY_HIST_THRESHOLD_PROCEDURE,other_bar=True)
+# %%
+calc_hist(df, 'Condition', EMPTY_HIST_THRESHOLD_CONDITION, other_bar=False)
+# %%
+calc_hist(df, 'Medication', EMPTY_HIST_THRESHOLD_MEDICATION,other_bar=True)
 # %% [markdown]
 # # Text
 
@@ -186,3 +216,6 @@ overall_percent_entities = (total_substring_entities / total_entities * 100) if 
 print("Number of rows:", len(df2))
 print(f"Rows with at least one substring entity: {df2['row_has_substring'].sum()} ({percentage_rows:.2f}%)")
 print(f"Overall percentage of substring entities among all entities: {overall_percent_entities:.2f}%")
+
+# %%
+df.iloc[23:28]

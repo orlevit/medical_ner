@@ -107,7 +107,7 @@ def prepare_data_BIO(texts, entity_lists, get_features_for_sentence=None):
     
     return X, y
 
-def calc_hist(df, col_name, threshold):
+def calc_hist(df, col_name, threshold, other_bar=False):
     # Get all unique conditions across rows.
     all_conditions = set().union(*df[col_name])
     
@@ -133,17 +133,18 @@ def calc_hist(df, col_name, threshold):
     other_percentage = (other_count / total_records) * 100
     
     # Add a new row for the aggregated "Other" category.
-    above_threshold.loc['Other'] = [other_count, other_percentage]
+    if other_bar:
+        above_threshold.loc['Other'] = [other_count, other_percentage]
     
-    # Add a new column showing the total low-frequency count (same value for every row).
-    above_threshold['LowFreqCount'] = other_count
+        # Add a new column showing the total low-frequency count (same value for every row).
+        above_threshold['LowFreqCount'] = other_count
     
     # Plot the bar chart for Percentage values.
     plt.figure(figsize=(20, 5))
     ax = above_threshold['Percentage'].plot(kind='bar')
     plt.xlabel(col_name)
     plt.ylabel('Percentage (%)')
-    plt.title(f'Frequency of Each {col_name} Across Records (in Percentage)')
+    plt.title(f'Distribution of Each {col_name} Across Records (in Percentage)')
     plt.show()
     
     plt.show()

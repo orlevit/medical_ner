@@ -360,7 +360,7 @@ def spacy_strubell_model_main():
 
     pipe_exceptions = ["ner", "tok2vec"]
 
-    trained_model = train_spacy_model(nlp, train_data, iterations=1)
+    trained_model = train_spacy_model(nlp, train_data, iterations=15)
 
     overall_metrics = evaluate_model(trained_model, test_data)
     entity_metrics = evaluate_by_entity_type(trained_model, test_data)
