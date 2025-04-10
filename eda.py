@@ -17,12 +17,6 @@
 # %autoreload 2
 
 # %%
-# todo:
-#spacy ner  model resourc - https://spacy.io/universe/project/video-spacys-ner-model
-# all condition match
-# medspacy - designated , unclear dataset traeind: RESORCE - https://github.com/medspacy/medspacy
-
-# %%
 import sys
 import os
 import pandas as pd
@@ -58,19 +52,6 @@ print(f'Lengths: Data : {len(df)}, None empty rows: {len(df_non_empty)}\n',
 f'Uniqe Conditions: {len(uniqe_Conditions)}, uniqe_Procedures: {len(uniqe_Procedures)}, uniqe Medication:{len(uniqe_Medication)}')
 calc_empty(df, empty_cacl_list)
 
-
-# %%
-def is_non_empty_list(x):
-    return isinstance(x, list) and len(x) > 0
-
-# Apply the function to the specified columns and create a mask
-columns_of_interest = ['Condition', 'Procedure', 'Medication']
-mask = df[columns_of_interest].applymap(is_non_empty_list)
-
-# Select rows where all specified columns contain non-empty lists
-df_non_empty = df[mask.any(axis=1)]
-len(df_non_empty)
-
 # %%
 calc_hist(df, 'Procedure', EMPTY_HIST_THRESHOLD_PROCEDURE,other_bar=True)
 # %%
@@ -94,106 +75,6 @@ print(f"\nAverage text length: {df['text_length'].mean():.2f} characters")
 print(f"Median text length: {df['text_length'].median()} characters")
 print(f"Min text length: {df['text_length'].min()} characters")
 print(f"Max text length: {df['text_length'].max()} characters")
-
-# %%
-import pandas as pd
-import numpy as np
-
-def analyze_text_length_by_entity(df):
-    # First calculate text length
-    df['text_length'] = df['text'].apply(len)
-    
-    # Overall text statistics
-    print("OVERALL TEXT STATISTICS")
-    print(f"Average text length: {df['text_length'].mean():.2f} characters")
-    print(f"Median text length: {df['text_length'].median()} characters")
-    print(f"Min text length: {df['text_length'].min()} characters")
-    print(f"Max text length: {df['text_length'].max()} characters")
-    
-    # Create a summary dataframe to store statistics by entity type
-    entity_types = ["Condition", "Procedure", "Medication"]
-    summary_data = []
-    
-    # For each entity type, calculate metrics
-    for entity_type in entity_types:
-        # Find texts that have this entity type
-        texts_with_entity = df[df[entity_type].apply(lambda x: isinstance(x, list) and len(x) > 0)]
-        
-        if len(texts_with_entity) > 0:
-            avg_length = texts_with_entity['text_length'].mean()
-            median_length = texts_with_entity['text_length'].median()
-            min_length = texts_with_entity['text_length'].min()
-            max_length = texts_with_entity['text_length'].max()
-            count = len(texts_with_entity)
-            
-            # For texts with this entity, what's the average entity count?
-            avg_entity_count = texts_with_entity[entity_type].apply(len).mean()
-            
-            # Calculate density: entities per 100 characters
-            entity_density = texts_with_entity[entity_type].apply(len).sum() / texts_with_entity['text_length'].sum() * 100
-            
-            summary_data.append({
-                'Entity Type': entity_type,
-                'Count': count,
-                'Avg Text Length': round(avg_length, 2),
-                'Median Text Length': int(median_length),
-                'Min Text Length': min_length,
-                'Max Text Length': max_length,
-                'Avg Entities per Text': round(avg_entity_count, 2),
-                'Entity Density (per 100 chars)': round(entity_density, 2)
-            })
-        else:
-            summary_data.append({
-                'Entity Type': entity_type,
-                'Count': 0,
-                'Avg Text Length': 0,
-                'Median Text Length': 0,
-                'Min Text Length': 0,
-                'Max Text Length': 0,
-                'Avg Entities per Text': 0,
-                'Entity Density (per 100 chars)': 0
-            })
-    
-    # Create summary dataframe
-    summary_df = pd.DataFrame(summary_data)
-    
-    # Print formatted summary
-    print("\nTEXT STATISTICS BY ENTITY TYPE")
-    print(summary_df.to_string(index=False))
-    
-    # Additional analysis: text with multiple entity types
-    print("\nTEXTS WITH MULTIPLE ENTITY TYPES")
-    
-    # Count how many entity types each text has
-    def count_entity_types(row):
-        count = 0
-        for entity_type in entity_types:
-            if isinstance(row[entity_type], list) and len(row[entity_type]) > 0:
-                count += 1
-        return count
-    
-    df['entity_type_count'] = df.apply(count_entity_types, axis=1)
-    
-    # Group by count and calculate statistics
-    entity_count_stats = df.groupby('entity_type_count').agg({
-        'text_length': ['count', 'mean', 'median', 'min', 'max']
-    })
-    
-    # Rename columns for better readability
-    entity_count_stats.columns = ['Count', 'Avg Length', 'Median Length', 'Min Length', 'Max Length']
-    entity_count_stats = entity_count_stats.reset_index()
-    entity_count_stats = entity_count_stats.rename(columns={'entity_type_count': 'Number of Entity Types'})
-    
-    # Format the values
-    entity_count_stats['Avg Length'] = entity_count_stats['Avg Length'].round(2)
-    entity_count_stats['Median Length'] = entity_count_stats['Median Length'].astype(int)
-    
-    print(entity_count_stats.to_string(index=False))
-    
-    return summary_df, entity_count_stats
-
-# Example usage:
-summary, multientity_stats = analyze_text_length_by_entity(df)
 
 # %%
 for idx, row in df.iterrows():
