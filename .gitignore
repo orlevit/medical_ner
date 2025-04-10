@@ -1,0 +1,4 @@
+.ipynb_checkpoints/
+__pycache__/
+data/outpu/train_test_split.json
+jupytext.toml

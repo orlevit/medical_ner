@@ -1,21 +1,7 @@
 # ---
 # jupyter:
 #   jupytext:
-#     text_representation:
-#       extension: .py
-#       format_name: percent
-#       format_version: '1.3'
-#       jupytext_version: 1.17.0
-#   kernelspec:
-#     display_name: Python 3 (ipykernel)
-#     language: python
-#     name: python3
-# ---
-
-# %%
-# ---
-# jupyter:
-#   jupytext:
+#     formats: ipynb,py:percent
 #     text_representation:
 #       extension: .py
 #       format_name: percent
@@ -41,9 +27,18 @@ import numpy as np
 
 def preprocess_text(text):
     """
-    Preprocess the text by:
-    1. Converting to lowercase
-    2. Removing special characters and excessive whitespace
+    Preprocesses the input text by performing multiple cleaning operations.
+    
+    The function:
+    1. Converts all text to lowercase
+    2. Removes special characters and punctuation by replacing them with spaces
+    3. Standardizes whitespace by removing excessive spaces and trimming
+    
+    Parameters:
+        text (str): The input text to be preprocessed
+        
+    Returns:
+        str: The cleaned and standardized text
     """
     text = text.lower()
     text = re.sub(r'[^\w\s]', ' ', text)
@@ -53,13 +48,22 @@ def preprocess_text(text):
 
 def create_stratified_split(df, test_size=0.2, random_state=42):
     """
-    Creates a stratified split that ensures both common and rare entities 
-    are distributed between training and test sets.
+    Creates a stratified data split that ensures balanced distribution of both common 
+    and rare medical entities between training and test sets.
     
-    The approach:
-    1. First include texts with rare entities in the training set
-    2. Create clusters based on text similarity for the remaining texts
-    3. Stratify the split based on these clusters
+    The function uses a multi-step approach:
+    1. Identifies rare entities (appearing less than 3 times in the dataset)
+    2. Segregates texts with rare entities and ensures their representation in training
+    3. For remaining texts with common entities, applies clustering for stratification
+    4. Combines the splits to create final train and test datasets
+    
+    Parameters:
+        df (DataFrame): Input dataframe containing medical text and entity annotations
+        test_size (float): Proportion of the dataset to include in the test split
+        random_state (int): Random seed for reproducibility
+        
+    Returns:
+        tuple: (train_df, test_df) containing the split datasets
     """
     from sklearn.feature_extraction.text import TfidfVectorizer
     from sklearn.cluster import KMeans
@@ -118,7 +122,24 @@ def create_stratified_split(df, test_size=0.2, random_state=42):
     
     return train_df, test_df
 
+
 def train_test_splitting():
+    """
+    Main function that performs the train-test split for medical entity extraction.
+    
+    This function:
+    1. Loads the medical text dataset from a configured file path
+    2. Preprocesses the data including string-to-list conversion for entity fields
+    3. Analyzes entity distributions and cardinality
+    4. Creates a stratified train-test split that preserves entity distributions
+    5. Saves the resulting split data to the configured output file
+    
+    The function preserves both features (processed text) and labels (medical entities)
+    in the output, formatted as a JSON file for downstream model training.
+    
+    Returns:
+        None: The function writes results to a JSON file but doesn't return values
+    """
     if not os.path.exists(TRAIN_TEST_OUTPUT_FILE):
         df = pd.read_csv(DATA_FILE)
         df.fillna(value='', inplace=True)
@@ -126,7 +147,6 @@ def train_test_splitting():
         convert_string_to_list(df, 'Procedure')
         convert_string_to_list(df, 'Condition')
         convert_string_to_list(df, 'Medication')
-        
         
         df['processed_text'] = df['text'].apply(preprocess_text)
         
@@ -144,7 +164,6 @@ def train_test_splitting():
         print(f"Unique Procedures: {len(unique_procedures)}")
         print(f"Unique Medications: {len(unique_medications)}")
         
-        
         train_df, test_df = create_stratified_split(df, test_size=0.2, random_state=42)
             
         X_train = train_df['processed_text']
@@ -161,4 +180,9 @@ def train_test_splitting():
         
         with open(TRAIN_TEST_OUTPUT_FILE, 'w') as f:
             json.dump(data, f, indent=2)
+  
+# %%
+## Uncomment to run the model
+# train_test_splitting()
+# %%
 

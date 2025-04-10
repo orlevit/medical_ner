@@ -11,7 +11,7 @@ MODELS_OUTPUT_DIR =os.path.join(OUTPUT_DIR, "models_results")
 DATA_FILE = os.path.join(INPUT_DIR, 'NER_dataset.csv') 
 TRAIN_TEST_OUTPUT_FILE = os.path.join(OUTPUT_DIR, 'train_test.json') 
 RULE_BASE_MODEL_OUTPUT_FILE = os.path.join(MODELS_OUTPUT_DIR, 'rule_based.csv') 
-STRUBELL_MODEL_OUTPUT_FILE = os.path.join(MODELS_OUTPUT_DIR, 'strubell.csv') 
+STRUBELL_MODEL_OUTPUT_FILE = os.path.join(MODELS_OUTPUT_DIR, 'ID_CNNs.csv') 
 CRF_MODEL_OUTPUT_FILE = os.path.join(MODELS_OUTPUT_DIR, 'crf.csv') 
 
 # Hyperparameters

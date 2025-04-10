@@ -13,8 +13,6 @@
 # ---
 
 # %%
-
-# %%
 import pandas as pd
 import spacy
 import re
@@ -26,49 +24,42 @@ from helper import read_train_test_split, prepare_data_BIO
 from config import CRF_MODEL_OUTPUT_FILE
 warnings.filterwarnings('ignore')
 
-
-# Load spaCy model for feature extraction
 nlp = spacy.load('en_core_web_sm')
 
 def evaluate_crf_model(crf_model, X_test, y_test):
     """
-    Evaluate the CRF model performance
+    Evaluates a trained CRF model using test data and calculates performance metrics.
     
     Args:
         crf_model: Trained CRF model
-        X_test: List of feature dictionaries for test sentences
-        y_test: List of label sequences for test sentences
-        
+        X_test: Test features
+        y_test: Test labels in BIO format
+    
     Returns:
-        Dictionary with evaluation metrics
+        results: Dictionary containing precision, recall, and F1 scores for each entity type and overall
+        report: Classification report as string
+        y_pred: Predicted labels
     """
-    # Make predictions
     y_pred = crf_model.predict(X_test)
     
-    # Get flat lists of true and predicted labels
     y_true_flat = [label for sublist in y_test for label in sublist]
     y_pred_flat = [label for sublist in y_pred for label in sublist]
     
-    # Calculate metrics for all labels
-    labels = set(y_true_flat) - {'O'}  # Exclude 'O' label
-    sorted_labels = sorted(list(labels), key=lambda name: (name[1:], name[0]))  # Sort by entity type
+    labels = set(y_true_flat) - {'O'}
+    sorted_labels = sorted(list(labels), key=lambda name: (name[1:], name[0]))
     
-    # Generate classification report
     report = flat_classification_report(y_test, y_pred, labels=sorted_labels, digits=4)
     
-    # Calculate precision, recall, and F1 for each entity type
     results = {}
     
-    # Group metrics by entity type (ignoring B- and I- prefixes)
     entity_types = set()
     for label in sorted_labels:
-        entity_type = label[2:]  # Remove B- or I- prefix
+        entity_type = label[2:]
         entity_types.add(entity_type)
     
     for entity_type in entity_types:
         entity_labels = [label for label in sorted_labels if label.endswith(entity_type)]
         
-        # Calculate metrics for this entity type
         y_true_entity = ['1' if label.endswith(entity_type) else '0' for label in y_true_flat]
         y_pred_entity = ['1' if label.endswith(entity_type) else '0' for label in y_pred_flat]
         
@@ -82,7 +73,6 @@ def evaluate_crf_model(crf_model, X_test, y_test):
             'f1': f1
         }
     
-    # Calculate overall metrics (micro average)
     precision, recall, f1, _ = precision_recall_fscore_support(
         y_true_flat, y_pred_flat, average='micro', labels=sorted_labels
     )
@@ -96,26 +86,43 @@ def evaluate_crf_model(crf_model, X_test, y_test):
     return results, report, y_pred
 
 def get_features_for_sentence(sentence):
-    """Extract features for each word in a sentence"""
+    """
+    Extracts features for all words in a sentence.
+    
+    Args:
+        sentence: List of spaCy tokens representing a sentence
+    
+    Returns:
+        List of feature dictionaries for each word in the sentence
+    """
     return [get_features_for_one_word(i, sentence) for i in range(len(sentence))]
 
 def get_features_for_one_word(cur_loc, sentence):
+    """
+    Extracts features for a single word in a sentence.
+    
+    Features include word text, POS tag, dependency relation, head word,
+    suffix, capitalization, and contextual features from surrounding words.
+    
+    Args:
+        cur_loc: Index of the current word
+        sentence: List of spaCy tokens representing a sentence
+    
+    Returns:
+        List of features for the word
+    """
     end_loc = len(sentence) - 1
-    # Obtaining features for current word
     word = sentence[cur_loc]
 
-    # Handle case where word attributes might be missing
     word_text = word.text if hasattr(word, 'text') else word.orth_
     word_pos = word.pos_ if hasattr(word, 'pos_') else 'NONE'
     word_dep = word.dep_ if hasattr(word, 'dep_') else 'NONE'
     
-    # Handle potential issues with head attribute
     try:
         head_text = word.head.text if hasattr(word.head, 'text') else word.head.orth_
     except:
         head_text = 'NONE'
     
-    # Safe string operations
     if len(word_text) >= 3:
         last_three = word_text[-3:]
     else:
@@ -127,17 +134,16 @@ def get_features_for_one_word(cur_loc, sentence):
         starts_with_capital = False
 
     features = [
-        f'word{0}.lower=' + word_text.lower(),                           # serves as word id
-        f'word{0}.postag=' + word_pos,                                   # PoS tag of current word
-        f'word{0}[-3:]=' + last_three,                                   # last three characters
-        f'word{0}.dep=' + word_dep,                                      # dependency dependent
-        f'word{0}.head=' + head_text,                                    # dependency head
-        f'word{0}.isupper={word_text.isupper()}',                        # is the word in all uppercase
-        f'word{0}.isdigit={word_text.isdigit()}',                        # is the word a number
-        f'word{0}.startsWithCapital={starts_with_capital}'               # is the word starting with a capital letter
+        f'word{0}.lower=' + word_text.lower(),
+        f'word{0}.postag=' + word_pos,
+        f'word{0}[-3:]=' + last_three,
+        f'word{0}.dep=' + word_dep,
+        f'word{0}.head=' + head_text,
+        f'word{0}.isupper={word_text.isupper()}',
+        f'word{0}.isdigit={word_text.isdigit()}',
+        f'word{0}.startsWithCapital={starts_with_capital}'
     ]
     
-    # Add features for previous word if available
     if cur_loc > 0:
         prev_word = sentence[cur_loc - 1]
         prev_word_text = prev_word.text if hasattr(prev_word, 'text') else prev_word.orth_
@@ -160,19 +166,18 @@ def get_features_for_one_word(cur_loc, sentence):
             prev_starts_with_capital = False
         
         features.extend([
-            f'word{-1}.lower=' + prev_word_text.lower(),                  # serves as word id
-            f'word{-1}.postag=' + prev_word_pos,                          # PoS tag of previous word
-            f'word{-1}[-3:]=' + prev_last_three,                          # last three characters
-            f'word{-1}.dep=' + prev_word_dep,                             # dependency dependent
-            f'word{-1}.head=' + prev_head_text,                           # dependency head
-            f'word{-1}.isupper={prev_word_text.isupper()}',               # is the word in all uppercase
-            f'word{-1}.isdigit={prev_word_text.isdigit()}',               # is the word a number
-            f'word{-1}.startsWithCapital={prev_starts_with_capital}'      # is the word starting with a capital letter
+            f'word{-1}.lower=' + prev_word_text.lower(),
+            f'word{-1}.postag=' + prev_word_pos,
+            f'word{-1}[-3:]=' + prev_last_three,
+            f'word{-1}.dep=' + prev_word_dep,
+            f'word{-1}.head=' + prev_head_text,
+            f'word{-1}.isupper={prev_word_text.isupper()}',
+            f'word{-1}.isdigit={prev_word_text.isdigit()}',
+            f'word{-1}.startsWithCapital={prev_starts_with_capital}'
         ])
     else:
-        features.append('BEG')  # feature to track begin of sentence 
+        features.append('BEG')
 
-    # Add features for next word if available
     if cur_loc < end_loc:
         next_word = sentence[cur_loc + 1]
         next_word_text = next_word.text if hasattr(next_word, 'text') else next_word.orth_
@@ -189,29 +194,29 @@ def get_features_for_one_word(cur_loc, sentence):
             next_starts_with_capital = False
         
         features.extend([
-            f'word{1}.lower=' + next_word_text.lower(),                  # serves as word id
-            f'word{1}.postag=' + next_word_pos,                          # PoS tag of next word
-            f'word{1}[-3:]=' + next_last_three,                          # last three characters
-            f'word{1}.isdigit={next_word_text.isdigit()}',               # is the word a number
-            f'word{1}.startsWithCapital={next_starts_with_capital}'      # is the word starting with a capital letter
+            f'word{1}.lower=' + next_word_text.lower(),
+            f'word{1}.postag=' + next_word_pos,
+            f'word{1}[-3:]=' + next_last_three,
+            f'word{1}.isdigit={next_word_text.isdigit()}',
+            f'word{1}.startsWithCapital={next_starts_with_capital}'
         ])
     
     if cur_loc == end_loc:
-        features.append('END')  # feature to track end of sentence
+        features.append('END')
 
     return features
+
 def train_crf_model(X_train, y_train):
     """
-    Train a CRF model for NER
+    Trains a Conditional Random Field (CRF) model for named entity recognition.
     
     Args:
-        X_train: List of feature dictionaries for training sentences
-        y_train: List of label sequences for training sentences
-        
+        X_train: Training features
+        y_train: Training labels in BIO format
+    
     Returns:
         Trained CRF model
     """
-    # Initialize CRF model with appropriate parameters
     crf = CRF(
         algorithm='lbfgs',
         c1=0.1,
@@ -220,70 +225,60 @@ def train_crf_model(X_train, y_train):
         all_possible_transitions=True
     )
     
-    # Train the model
     crf.fit(X_train, y_train)
     
     return crf
-# Function to convert CRF predictions back to entity lists
+
 def convert_predictions_to_entities(texts, y_pred):
     """
-    Convert CRF predictions back to entity lists
+    Converts BIO tag predictions into entity dictionaries.
     
     Args:
-        texts: List of texts
-        y_pred: List of predicted label sequences
-        
+        texts: List of original text strings
+        y_pred: Predicted BIO tags from the CRF model
+    
     Returns:
-        List of dictionaries with entity types as keys and lists of entities as values
+        List of dictionaries with extracted entities grouped by entity type
     """
     result = []
     
     for i, text in enumerate(texts):
-        # Process text with spaCy to get token boundaries
         doc = nlp(text)
         labels = y_pred[i]
         
-        # Initialize entity dictionary
         entity_dict = {
             'Condition': [],
             'Procedure': [],
             'Medication': []
         }
         
-        # Extract entities from labels
         current_entity = None
         current_type = None
         current_start = None
         
         for j, (token, label) in enumerate(zip(doc, labels)):
             if label.startswith('B-'):
-                # End previous entity if there was one
                 if current_entity is not None:
                     entity_dict[current_type].append(current_entity)
                 
-                # Start new entity
-                current_type = label[2:]  # Remove B- prefix
+                current_type = label[2:]
                 current_entity = token.text
                 current_start = j
             
             elif label.startswith('I-'):
-                # Continue current entity
                 if current_entity is not None and label[2:] == current_type:
                     current_entity += ' ' + token.text
-                # Handle inconsistent labeling (I- without preceding B-)
                 else:
-                    current_type = label[2:]  # Remove I- prefix
+                    current_type = label[2:]
                     current_entity = token.text
                     current_start = j
             
             elif label == 'O' and current_entity is not None:
-                # End current entity
                 entity_dict[current_type].append(current_entity)
                 current_entity = None
                 current_type = None
                 current_start = None
         
-        # Add final entity if there is one
         if current_entity is not None:
             entity_dict[current_type].append(current_entity)
         
@@ -293,15 +288,15 @@ def convert_predictions_to_entities(texts, y_pred):
 
 def generate_output_adjusted(texts, predicted_entity_dicts, original_df=None):
     """
-    Generate output dataframe in the required format with both predicted and original entity columns
+    Generates a DataFrame with predicted entities and optionally original annotations.
     
     Args:
-        texts: List of texts
-        predicted_entity_dicts: List of dictionaries with predicted entity types as keys and lists of entities as values
-        original_df: Original DataFrame with entity columns to consolidate
-        
+        texts: List of original text strings
+        predicted_entity_dicts: List of dictionaries with predicted entities
+        original_df: Optional DataFrame containing original entity annotations
+    
     Returns:
-        DataFrame with columns: text, predicted entities, and original entities
+        DataFrame with columns for text, predicted entities, and original entities if provided
     """
     import pandas as pd
     
@@ -309,12 +304,10 @@ def generate_output_adjusted(texts, predicted_entity_dicts, original_df=None):
     
     for i, text in enumerate(texts):
         try:
-            # Convert predicted entity lists to comma-separated strings
             condition_str = ', '.join(predicted_entity_dicts[i]['Condition']) if predicted_entity_dicts[i]['Condition'] else ''
             procedure_str = ', '.join(predicted_entity_dicts[i]['Procedure']) if predicted_entity_dicts[i]['Procedure'] else ''
             medication_str = ', '.join(predicted_entity_dicts[i]['Medication']) if predicted_entity_dicts[i]['Medication'] else ''
             
-            # Create result row with predicted entities
             result_row = {
                 'text': text,
                 'Condition': condition_str,
@@ -322,9 +315,7 @@ def generate_output_adjusted(texts, predicted_entity_dicts, original_df=None):
                 'Medication': medication_str
             }
             
-            # Add original entity columns if original_df is provided
             if original_df is not None and i < len(original_df):
-                # Get original values
                 result_row['original_Condition'] = ', '.join(original_df.iloc[i]['Condition']) if isinstance(original_df.iloc[i]['Condition'], list) else original_df.iloc[i]['Condition']
                 result_row['original_Procedure'] = ', '.join(original_df.iloc[i]['Procedure']) if isinstance(original_df.iloc[i]['Procedure'], list) else original_df.iloc[i]['Procedure']
                 result_row['original_Medication'] = ', '.join(original_df.iloc[i]['Medication']) if isinstance(original_df.iloc[i]['Medication'], list) else original_df.iloc[i]['Medication']
@@ -333,7 +324,6 @@ def generate_output_adjusted(texts, predicted_entity_dicts, original_df=None):
             
         except Exception as e:
             print(f"Error processing text #{i}: {str(e)[:100]}...")
-            # Add an empty row with just the text to maintain alignment
             result_row = {
                 'text': text,
                 'Condition': '',
@@ -341,7 +331,6 @@ def generate_output_adjusted(texts, predicted_entity_dicts, original_df=None):
                 'Medication': ''
             }
             
-            # Add original entity columns if original_df is provided
             if original_df is not None and i < len(original_df):
                 result_row['original_Condition'] = ', '.join(original_df.iloc[i]['Condition']) if isinstance(original_df.iloc[i]['Condition'], list) else original_df.iloc[i]['Condition']
                 result_row['original_Procedure'] = ', '.join(original_df.iloc[i]['Procedure']) if isinstance(original_df.iloc[i]['Procedure'], list) else original_df.iloc[i]['Procedure']
@@ -351,20 +340,19 @@ def generate_output_adjusted(texts, predicted_entity_dicts, original_df=None):
     
     return pd.DataFrame(results)
 
-# Update the run_crf_pipeline function to use the adjusted output function
 def run_crf_pipeline_with_original_columns(X_train, y_train_entity_dicts, X_test, y_test_entity_dicts, y_test_df=None):
     """
-    Run the complete CRF pipeline with consolidated output
+    Runs the complete CRF pipeline: training, evaluation, and prediction.
     
     Args:
         X_train: List of training texts
-        y_train_entity_dicts: List of dictionaries with training entity annotations
+        y_train_entity_dicts: Training entity annotations
         X_test: List of test texts
-        y_test_entity_dicts: List of dictionaries with test entity annotations
-        y_test_df: Original test DataFrame with entity columns
-        
+        y_test_entity_dicts: Test entity annotations
+        y_test_df: Optional DataFrame with original test annotations
+    
     Returns:
-        Dictionary with evaluation results and output dataframe
+        Dictionary containing the model, evaluation metrics, predictions, and output DataFrame
     """
     print("Preparing training data for CRF...")
     X_train_features, y_train_labels = prepare_data_BIO(X_train, y_train_entity_dicts, get_features_for_sentence)
@@ -393,8 +381,17 @@ def run_crf_pipeline_with_original_columns(X_train, y_train_entity_dicts, X_test
     }
 
 def crf_main():
+    """
+    Main function to run the CRF model pipeline.
+    
+    This function:
+    1. Loads train and test data
+    2. Prepares entity dictionaries from the data
+    3. Runs the CRF pipeline
+    4. Saves the output to a CSV file
+    5. Prints detailed performance metrics
+    """
     X_train, y_train, X_test, y_test = read_train_test_split()
-    # Prepare entity lists for training
     train_entities = []
     for i in range(len(y_train)):
         train_entities.append({
@@ -403,7 +400,6 @@ def crf_main():
             "Medication": y_train.iloc[i]['Medication']
         })
 
-    # Prepare entity lists for testing
     test_entities = []
     for i in range(len(y_test)):
         test_entities.append({
@@ -412,14 +408,12 @@ def crf_main():
             "Medication": y_test.iloc[i]['Medication']
         })
 
-    # Create test DataFrame for original columns
     test_df = pd.DataFrame({
         'Condition': y_test['Condition'],
         'Procedure': y_test['Procedure'],
         'Medication': y_test['Medication']
     })
 
-    # Run the pipeline with original columns
     results = run_crf_pipeline_with_original_columns(
         X_train.tolist(), 
         train_entities, 
@@ -428,8 +422,6 @@ def crf_main():
         y_test_df=test_df
     )
 
-     
-    # Save the output directly
     results['output_df'].to_csv(CRF_MODEL_OUTPUT_FILE, index=False)
 
     print("\nDetailed Classification Report:")
@@ -442,8 +434,13 @@ def crf_main():
             print(f"Precision: {results['evaluation'][entity_type]['precision']:.4f}")
             print(f"Recall: {results['evaluation'][entity_type]['recall']:.4f}")
 
-    # Print evaluation results
     print("\nCRF Model Performance:")
     print(f"Overall F1 Score: {results['evaluation']['overall']['f1']:.4f}")
     print(f"Overall Precision: {results['evaluation']['overall']['precision']:.4f}")
     print(f"Overall Recall: {results['evaluation']['overall']['recall']:.4f}")
+
+# %%
+## Uncomment to run the model
+# crf_main()
+
+# %%

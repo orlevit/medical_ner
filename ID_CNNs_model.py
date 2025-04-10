@@ -1,3 +1,20 @@
+# ---
+# jupyter:
+#   jupytext:
+#     cell_metadata_filter: -all
+#     formats: ipynb,py:percent
+#     text_representation:
+#       extension: .py
+#       format_name: percent
+#       format_version: '1.3'
+#       jupytext_version: 1.17.0
+#   kernelspec:
+#     display_name: Python 3 (ipykernel)
+#     language: python
+#     name: python3
+# ---
+
+# %%
 import re
 import spacy
 from spacy.util import minibatch,compounding
@@ -10,6 +27,16 @@ from helper import read_train_test_split
 warnings.filterwarnings('ignore')
 
 def convert_to_spacy_format(texts, entities_lists):
+    """
+    Convert text and entity annotations to spaCy training format.
+    
+    Args:
+        texts: List of text strings
+        entities_lists: List of dictionaries containing entity annotations
+        
+    Returns:
+        List of (text, annotations) tuples in spaCy format
+    """
     training_data = []
     
     valid_entity_types = {"Condition", "Procedure", "Medication"}
@@ -51,6 +78,17 @@ def convert_to_spacy_format(texts, entities_lists):
     return training_data
 
 def train_spacy_model(model, train_data, iterations=30):
+    """
+    Train a spaCy NER model with the provided training data.
+    
+    Args:
+        model: spaCy model to train
+        train_data: Training data in spaCy format
+        iterations: Number of training iterations
+        
+    Returns:
+        Trained spaCy model
+    """
     losses = {}
     
     if "ner" not in model.pipe_names:
@@ -143,7 +181,6 @@ def train_spacy_model(model, train_data, iterations=30):
     
     return model
 
-
 def evaluate_model(model, test_data):
     """
     Evaluate the model on test data and calculate precision, recall, and F1 score.
@@ -167,16 +204,10 @@ def evaluate_model(model, test_data):
         pred_entities = [(ent.start_char, ent.end_char, ent.label_) for ent in doc.ents]
         pred_entity_spans = set(pred_entities)
         
-        # True positives: entities that are both in true and predicted sets
         true_positives += len(true_entity_spans.intersection(pred_entity_spans))
-        
-        # False positives: entities in predicted but not in true set
         false_positives += len(pred_entity_spans - true_entity_spans)
-        
-        # False negatives: entities in true but not in predicted set
         false_negatives += len(true_entity_spans - pred_entity_spans)
     
-    # Calculate metrics
     precision = true_positives / (true_positives + false_positives) if (true_positives + false_positives) > 0 else 0
     recall = true_positives / (true_positives + false_negatives) if (true_positives + false_negatives) > 0 else 0
     f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
@@ -190,9 +221,18 @@ def evaluate_model(model, test_data):
         "false_negatives": false_negatives
     }
 
-
 def generate_output(model, texts, original_df=None):
+    """
+    Generate entity predictions for a list of texts and create output dataframe.
     
+    Args:
+        model: Trained spaCy model
+        texts: List of text strings to analyze
+        original_df: Optional dataframe with original annotations for comparison
+        
+    Returns:
+        DataFrame with prediction results and optional comparison to ground truth
+    """
     results = []
     
     for i, text in enumerate(texts):
@@ -275,7 +315,6 @@ def evaluate_by_entity_type(model, test_data):
         doc = model(text)
         pred_entities = [(ent.start_char, ent.end_char, ent.label_) for ent in doc.ents]
         
-        # Group true entities by type
         true_by_type = {
             "Condition": set(),
             "Procedure": set(),
@@ -285,7 +324,6 @@ def evaluate_by_entity_type(model, test_data):
         for start, end, label in true_entities:
             true_by_type[label].add((start, end))
         
-        # Group predicted entities by type
         pred_by_type = {
             "Condition": set(),
             "Procedure": set(),
@@ -296,7 +334,6 @@ def evaluate_by_entity_type(model, test_data):
             if label in pred_by_type:
                 pred_by_type[label].add((start, end))
         
-        # Calculate metrics for each type
         for entity_type in ["Condition", "Procedure", "Medication"]:
             true_spans = true_by_type[entity_type]
             pred_spans = pred_by_type[entity_type]
@@ -305,7 +342,6 @@ def evaluate_by_entity_type(model, test_data):
             metrics_by_type[entity_type]["fp"] += len(pred_spans - true_spans)
             metrics_by_type[entity_type]["fn"] += len(true_spans - pred_spans)
     
-    # Calculate precision, recall, and F1 for each entity type
     results = {}
     for entity_type, counts in metrics_by_type.items():
         tp = counts["tp"]
@@ -324,8 +360,12 @@ def evaluate_by_entity_type(model, test_data):
     
     return results
 
-
 def spacy_strubell_model_main():
+    """
+    Main function to train and evaluate the Strubell NER model for medical entities.
+    
+    Reads train/test data, trains model, evaluates performance, and generates output file.
+    """
     print("Starting Strubell model training..")
     X_train, y_train, X_test, y_test = read_train_test_split()
     train_entities = []
@@ -379,3 +419,7 @@ def spacy_strubell_model_main():
 
     output_df = generate_output(trained_model, X_test.tolist(), original_df=y_test)
     output_df.to_csv(STRUBELL_MODEL_OUTPUT_FILE, index=False)
+
+# %%
+## Uncomment to run the model
+# spacy_strubell_model_main()
