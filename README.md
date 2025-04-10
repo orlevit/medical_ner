@@ -45,6 +45,7 @@ Please find the attached PDF for comprehensive report.
 ## Getting Started
 ### Prerequisites
 Python version 3.12.3 
+
 Virtual environment
 
 ### Installation
