@@ -9,6 +9,7 @@ This project implements three distinct Named Entity Recognition (NER) methods fo
    - [Prerequisites](#prerequisites)
    - [Installation](#installation)
 5. [Tools & Technologies](#tools--technologies)
+6. [Results](#results)
 
 ## Overview
 This project focuses on extracting critical medical entities from clinical texts using different NER techniques. The implemented models achieve high performance, with the best model reaching an F1 score of 0.9540, demonstrating the effectiveness of the approaches for medical text analysis.
@@ -71,3 +72,7 @@ Virtual environment
 - **NLTK/spaCy**: Natural language processing tools for text preprocessing
 - **Pandas/NumPy**: Data manipulation and numerical operations
 - **Matplotlib/Seaborn**: Visualization of results and data distributions
+
+### Results
+The results form ech model is provided in "data/output/models results/" directory.
+in addition to the predicted entities also the original columns were added for ease of compersion
