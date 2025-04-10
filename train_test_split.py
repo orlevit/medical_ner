@@ -119,45 +119,46 @@ def create_stratified_split(df, test_size=0.2, random_state=42):
     return train_df, test_df
 
 def train_test_splitting():
-    df = pd.read_csv(DATA_FILE)
-    df.fillna(value='', inplace=True)
-    
-    convert_string_to_list(df, 'Procedure')
-    convert_string_to_list(df, 'Condition')
-    convert_string_to_list(df, 'Medication')
-    
-    
-    df['processed_text'] = df['text'].apply(preprocess_text)
-    
-    print("\nAnalyzing entity cardinality:")
-    all_conditions = [item for sublist in df['Condition'].tolist() for item in sublist if item]
-    all_procedures = [item for sublist in df['Procedure'].tolist() for item in sublist if item]
-    all_medications = [item for sublist in df['Medication'].tolist() for item in sublist if item]
-    
-    unique_conditions = set(all_conditions)
-    unique_procedures = set(all_procedures)
-    unique_medications = set(all_medications)
-    
-    print(f"Data rows: {len(df)}")
-    print(f"Unique Conditions: {len(unique_conditions)}")
-    print(f"Unique Procedures: {len(unique_procedures)}")
-    print(f"Unique Medications: {len(unique_medications)}")
-    
-    
-    train_df, test_df = create_stratified_split(df, test_size=0.2, random_state=42)
+    if not os.path.exists(TRAIN_TEST_OUTPUT_FILE):
+        df = pd.read_csv(DATA_FILE)
+        df.fillna(value='', inplace=True)
         
-    X_train = train_df['processed_text']
-    y_train = train_df[['Condition', 'Procedure', 'Medication']]
-    X_test = test_df['processed_text']
-    y_test = test_df[['Condition', 'Procedure', 'Medication']]
+        convert_string_to_list(df, 'Procedure')
+        convert_string_to_list(df, 'Condition')
+        convert_string_to_list(df, 'Medication')
+        
+        
+        df['processed_text'] = df['text'].apply(preprocess_text)
+        
+        print("\nAnalyzing entity cardinality:")
+        all_conditions = [item for sublist in df['Condition'].tolist() for item in sublist if item]
+        all_procedures = [item for sublist in df['Procedure'].tolist() for item in sublist if item]
+        all_medications = [item for sublist in df['Medication'].tolist() for item in sublist if item]
+        
+        unique_conditions = set(all_conditions)
+        unique_procedures = set(all_procedures)
+        unique_medications = set(all_medications)
+        
+        print(f"Data rows: {len(df)}")
+        print(f"Unique Conditions: {len(unique_conditions)}")
+        print(f"Unique Procedures: {len(unique_procedures)}")
+        print(f"Unique Medications: {len(unique_medications)}")
+        
+        
+        train_df, test_df = create_stratified_split(df, test_size=0.2, random_state=42)
+            
+        X_train = train_df['processed_text']
+        y_train = train_df[['Condition', 'Procedure', 'Medication']]
+        X_test = test_df['processed_text']
+        y_test = test_df[['Condition', 'Procedure', 'Medication']]
 
-    data = {
-        "X_train": X_train.tolist(),
-        "y_train": y_train.to_dict(orient="records"),
-        "X_test": X_test.tolist(),
-        "y_test": y_test.to_dict(orient="records")
-    }
-    
-    with open(TRAIN_TEST_OUTPUT_FILE, 'w') as f:
-        json.dump(data, f, indent=2)
+        data = {
+            "X_train": X_train.tolist(),
+            "y_train": y_train.to_dict(orient="records"),
+            "X_test": X_test.tolist(),
+            "y_test": y_test.to_dict(orient="records")
+        }
+        
+        with open(TRAIN_TEST_OUTPUT_FILE, 'w') as f:
+            json.dump(data, f, indent=2)
 

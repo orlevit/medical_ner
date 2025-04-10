@@ -7,7 +7,10 @@ from os import wait
 import pandas as pd
 import matplotlib.pyplot as plt
 from tabulate import tabulate
+from collections import Counter
 from config import  TRAIN_TEST_OUTPUT_FILE
+
+
 
 
 def prepare_data_BIO(texts, entity_lists, get_features_for_sentence=None):
@@ -254,3 +257,203 @@ def read_train_test_split():
     y_test = pd.DataFrame(data["y_test"])
     
     return X_train, y_train, X_test, y_test
+
+import pandas as pd
+import numpy as np
+from collections import Counter
+from scipy.stats import wasserstein_distance, ks_2samp
+import matplotlib.pyplot as plt
+
+def calculate_entity_balance(y_train, y_test):
+    entity_types = ["Condition", "Procedure", "Medication"]
+    results = {}
+    
+    for entity_type in entity_types:
+        
+        train_entities = []
+        for entities_list in y_train[entity_type]:
+            if isinstance(entities_list, list):
+                train_entities.extend(entities_list)
+                
+        test_entities = []
+        for entities_list in y_test[entity_type]:
+            if isinstance(entities_list, list):
+                test_entities.extend(entities_list)
+        
+        train_counter = Counter(train_entities)
+        test_counter = Counter(test_entities)
+        
+        all_entities = set(train_counter.keys()) | set(test_counter.keys())
+        
+        train_total = len(train_entities)
+        test_total = len(test_entities)
+        
+        train_dist = {entity: train_counter.get(entity, 0) / train_total 
+                      for entity in all_entities}
+        test_dist = {entity: test_counter.get(entity, 0) / test_total 
+                     for entity in all_entities}
+        
+        train_coverage = len(train_counter) / len(all_entities)
+        test_coverage = len(test_counter) / len(all_entities)
+        shared_entities = set(train_counter.keys()) & set(test_counter.keys())
+        overlap_ratio = len(shared_entities) / len(all_entities)
+        
+        all_entities_list = list(all_entities)
+        train_values = [train_dist.get(entity, 0) for entity in all_entities_list]
+        test_values = [test_dist.get(entity, 0) for entity in all_entities_list]
+        
+        emd = wasserstein_distance(train_values, test_values)
+        
+        ks_stat, ks_pvalue = ks_2samp(train_values, test_values)
+        
+        train_array = np.array(train_values)
+        test_array = np.array(test_values)
+        m = 0.5 * (train_array + test_array)
+        
+        def safe_log(x, base=np.e):
+            return np.log(x, out=np.zeros_like(x), where=(x!=0))
+            
+        def kl_divergence(p, q):
+            non_zero = p > 0
+            safe_q = np.copy(q)
+            safe_q[non_zero & (safe_q == 0)] = 1e-10
+            return np.sum(p[non_zero] * safe_log(p[non_zero] / safe_q[non_zero]))
+            
+        js_div = 0.5 * kl_divergence(train_array, m) + 0.5 * kl_divergence(test_array, m)
+        
+        normalized_emd = 1 - min(emd, 1)
+        normalized_ks = 1 - ks_stat
+        normalized_js = 1 - min(js_div, 1)
+        
+        balance_score = (normalized_emd * 0.3 + 
+                         normalized_ks * 0.1 + 
+                         normalized_js * 0.1 + 
+                         overlap_ratio * 0.4) * 100
+        
+        results[entity_type] = {
+            "unique_in_train": len(train_counter),
+            "unique_in_test": len(test_counter),
+            "total_unique": len(all_entities),
+            "shared_entities": len(shared_entities),
+            "overlap_ratio": overlap_ratio,
+            "earth_movers_distance": emd,
+            "ks_statistic": ks_stat,
+            "ks_pvalue": ks_pvalue,
+            "jensen_shannon_div": js_div,
+            "balance_score": balance_score
+        }
+        
+    return results
+
+def create_balance_visualization(results):
+    entity_types = list(results.keys())
+    balance_scores = [results[et]["balance_score"] for et in entity_types]
+    
+    plt.figure(figsize=(10, 6))
+    bars = plt.bar(entity_types, balance_scores, color=['#3498db', '#2ecc71', '#e74c3c'])
+    
+    for bar in bars:
+        height = bar.get_height()
+        plt.text(bar.get_x() + bar.get_width()/2., height + 1,
+                 f'{height:.1f}', ha='center', va='bottom')
+    
+    plt.title('Entity Type Balance Score (Train vs Test)')
+    plt.ylabel('Balance Score (%)')
+    plt.ylim(0, 100)
+    plt.tight_layout()
+    plt.show()
+    
+    overlap_ratios = [results[et]["overlap_ratio"] * 100 for et in entity_types]
+    
+    plt.figure(figsize=(10, 6))
+    bars = plt.bar(entity_types, overlap_ratios, color=['#3498db', '#2ecc71', '#e74c3c'])
+    
+    for bar in bars:
+        height = bar.get_height()
+        plt.text(bar.get_x() + bar.get_width()/2., height + 1,
+                 f'{height:.1f}%', ha='center', va='bottom')
+    
+    plt.title('Entity Overlap Between Train and Test Sets')
+    plt.ylabel('Overlap Percentage (%)')
+    plt.ylim(0, 100)
+    
+    plt.tight_layout()
+    plt.show()
+
+def print_balance_results(balance_results):
+    print("-" * 80)
+    print(f"{'Entity Type':<15} {'Balance Score %':<15} {'Overlap %':<15} {'Normallized EMD %':<15} {'KS Stat %':<18}")
+    print("-" * 80)
+  
+    for entity_type, metrics in balance_results.items():
+        overlap_info = f"{round(metrics['overlap_ratio']*100,1)}%({metrics['shared_entities']}/{metrics['total_unique']})"
+        # Don't convert balance_score to string yet
+        print(f"{entity_type:<15} {metrics['balance_score']:.1f}%{'':<13} {overlap_info:<17} {round(metrics['earth_movers_distance'],2)*100:.1f}%{'':<10} {round(metrics['ks_statistic'],2)*100:.1f}%")
+
+def plot_entity_distributions(y_train, y_test):
+    entity_types = ["Condition", "Procedure", "Medication"]    
+    # Get raw counts for both datasets
+    train_counts = {}
+    test_counts = {}
+    
+    for entity_type in entity_types:
+        # Get all entities from train set
+        train_entities = []
+        for entities_list in y_train[entity_type]:
+            if isinstance(entities_list, list):
+                train_entities.extend(entities_list)
+        
+        # Get all entities from test set
+        test_entities = []
+        for entities_list in y_test[entity_type]:
+            if isinstance(entities_list, list):
+                test_entities.extend(entities_list)
+        
+        # Store raw counts
+        train_counts[entity_type] = len(train_entities)
+        test_counts[entity_type] = len(test_entities)
+    
+    # Create normalized counts (percentages)
+    train_total = sum(train_counts.values())
+    test_total = sum(test_counts.values())
+    
+    train_pct = {k: v/train_total*100 for k, v in train_counts.items()}
+    test_pct = {k: v/test_total*100 for k, v in test_counts.items()}
+    
+    # Plot the distribution
+    x = np.arange(len(entity_types))
+    width = 0.35
+    
+    fig, ax = plt.subplots(figsize=(12, 7))
+    train_bars = ax.bar(x - width/2, [train_pct[et] for et in entity_types], width, label='Train', color='#3498db')
+    test_bars = ax.bar(x + width/2, [test_pct[et] for et in entity_types], width, label='Test', color='#e74c3c')
+    
+    # Add counts on top of the bars
+    def add_labels(bars, counts):
+        for bar, count in zip(bars, counts):
+            height = bar.get_height()
+            ax.annotate(f'{count}\n({height:.1f}%)',
+                         xy=(bar.get_x() + bar.get_width() / 2, height),
+                         xytext=(0, -2),  # 3 points vertical offset
+                         textcoords="offset points",
+                         ha='center', va='bottom')
+    
+    add_labels(train_bars, [train_counts[et] for et in entity_types])
+    add_labels(test_bars, [test_counts[et] for et in entity_types])
+    
+    # Add labels and title
+    ax.set_ylabel('Percentage (%)')
+    ax.set_title('Distribution of Entity Types in Train vs Test Sets')
+    ax.set_xticks(x)
+    ax.set_xticklabels(entity_types)
+    ax.legend()
+    
+    # Add a second y-axis for raw counts
+    ax2 = ax.twinx()
+    max_count = max(max(train_counts.values()), max(test_counts.values()))
+    ax2.set_ylim(0, max_count * 1.15)  # Match the percentage axis but with counts
+    ax2.set_ylabel('Count')
+    
+    plt.tight_layout()
+    plt.savefig('entity_type_distribution.png')
+    plt.show()
